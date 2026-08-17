@@ -122,12 +122,10 @@ jobs:
           echo "📁 Current remote directory check:"
           $SELECTED_SSH_CMD "$SSH_USER@$SSH_HOST" "pwd && ls -ld $DEPLOY_PATH 2>/dev/null || true"
 
-          # Exclude non-production / sensitive files from sync
+          # Exclude non-production / build-only files from sync
           cat << 'EOF' > .rsync-exclude
           .git/
           .github/
-          .env
-          .env.*
           node_modules/
           tests/
           .phpunit.result.cache
