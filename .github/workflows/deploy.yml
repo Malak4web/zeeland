@@ -57,7 +57,7 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Validate secrets
+          # Validate required secrets
           if [ -z "$SSH_HOST" ]; then
             echo "❌ Error: SSH_HOST secret is missing in GitHub Repository Secrets!"
             exit 1
@@ -67,40 +67,65 @@ jobs:
             exit 1
           fi
 
-          # Prepare SSH Key
-          USE_KEY=false
-          if [ -n "$SSH_KEY" ]; then
-            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa_raw
-            chmod 600 ~/.ssh/id_rsa_raw
+          # Install sshpass
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y sshpass rsync >/dev/null 2>&1 || true
 
-            # If key has a passphrase, decrypt it in the runner so SSH never prompts
-            if [ -n "$SSH_PASS" ]; then
-              openssl rsa -in ~/.ssh/id_rsa_raw -out ~/.ssh/id_rsa -passin pass:"$SSH_PASS" 2>/dev/null || cp ~/.ssh/id_rsa_raw ~/.ssh/id_rsa
-            else
-              cp ~/.ssh/id_rsa_raw ~/.ssh/id_rsa
-            fi
+          # Base SSH options
+          SSH_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o BatchMode=yes"
+
+          # Setup private key if supplied
+          HAS_KEY=false
+          if [ -n "$SSH_KEY" ]; then
+            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
-            USE_KEY=true
+            HAS_KEY=true
           fi
 
-          # Register Host Key
-          ssh-keyscan -T 10 -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Function to test connectivity
+          CONNECTED=false
+          SELECTED_SSH_CMD=""
 
-          # Build SSH Command with strict timeouts to prevent hanging
-          SSH_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+          # Attempt 1: SSH Key Authentication
+          if [ "$HAS_KEY" = "true" ]; then
+            echo "🔑 Testing SSH Key authentication..."
+            if ssh $SSH_OPTS -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "echo 'SSH_KEY_OK'" >/dev/null 2>&1; then
+              echo "✅ SSH Key Authentication Successful!"
+              SELECTED_SSH_CMD="ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa"
+              CONNECTED=true
+            else
+              echo "⚠️ SSH Key authentication was not accepted by cPanel."
+            fi
+          fi
 
-          if [ "$USE_KEY" = "true" ]; then
-            SSH_CMD="ssh $SSH_OPTS -i ~/.ssh/id_rsa"
-          elif [ -n "$SSH_PASS" ]; then
-            sudo apt-get install -y sshpass
-            SSH_CMD="sshpass -p '$SSH_PASS' ssh $SSH_OPTS"
-          else
-            echo "❌ Error: Neither ssh_key nor SSH_PASSWORD is provided in GitHub Secrets!"
+          # Attempt 2: SSH Password Authentication (if key failed or password provided)
+          if [ "$CONNECTED" = "false" ] && [ -n "$SSH_PASS" ]; then
+            echo "🔑 Testing SSH Password authentication..."
+            PASS_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+            if sshpass -p "$SSH_PASS" ssh $PASS_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH_PASS_OK'" >/dev/null 2>&1; then
+              echo "✅ SSH Password Authentication Successful!"
+              SELECTED_SSH_CMD="sshpass -p '$SSH_PASS' ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+              CONNECTED=true
+            else
+              echo "⚠️ SSH Password authentication was not accepted by cPanel."
+            fi
+          fi
+
+          if [ "$CONNECTED" = "false" ]; then
+            echo "❌ Authentication Failed! cPanel rejected both SSH Key and Password."
+            echo ""
+            echo "📋 Please verify the following in your cPanel and GitHub Secrets:"
+            echo "1. cPanel -> SSH Access -> Manage SSH Keys -> Ensure your key is 'Authorized' (click Manage -> Authorize)."
+            echo "2. GitHub Secrets -> 'SSH_USER': Ensure it matches your exact cPanel username."
+            echo "3. GitHub Secrets -> 'SSH_HOST': Ensure it is your server IP or domain (without https://)."
+            echo "4. GitHub Secrets -> 'SSH_PORT': If your hosting uses a custom SSH port (e.g. 21098 or 2222), specify it in SSH_PORT."
+            echo "5. GitHub Secrets -> 'ssh_key': Ensure you pasted the Private Key (BEGIN ... PRIVATE KEY)."
+            echo "6. GitHub Secrets -> 'SSH_PASSWORD': Ensure it is your exact cPanel password."
             exit 1
           fi
 
-          echo "🔍 Testing SSH connection to $SSH_USER@$SSH_HOST:$SSH_PORT ..."
-          $SSH_CMD "$SSH_USER@$SSH_HOST" "echo '✅ SSH Connection Successful to cPanel! Current directory: \$(pwd)'"
+          echo "📁 Current remote directory check:"
+          $SELECTED_SSH_CMD "$SSH_USER@$SSH_HOST" "pwd && ls -ld $DEPLOY_PATH 2>/dev/null || true"
 
           # Exclude non-production / sensitive files from sync
           cat << 'EOF' > .rsync-exclude
@@ -116,9 +141,9 @@ jobs:
           .rsync-exclude
           EOF
 
-          echo "🚀 Synchronizing files via Rsync to $DEPLOY_PATH ..."
+          echo "🚀 Synchronizing application files via Rsync to $DEPLOY_PATH ..."
           rsync -avz --delete \
-            -e "$SSH_CMD" \
+            -e "$SELECTED_SSH_CMD" \
             --exclude-from='.rsync-exclude' \
             --exclude='storage/app/public/*' \
             --exclude='storage/framework/sessions/*' \
@@ -129,7 +154,7 @@ jobs:
             ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
           echo "⚙️ Executing Artisan commands on cPanel..."
-          $SSH_CMD "$SSH_USER@$SSH_HOST" "
+          $SELECTED_SSH_CMD "$SSH_USER@$SSH_HOST" "
             set -e
             cd $DEPLOY_PATH
 
