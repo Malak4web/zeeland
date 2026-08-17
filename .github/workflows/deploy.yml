@@ -134,6 +134,10 @@ jobs:
           phpunit.xml
           .editorconfig
           .rsync-exclude
+          database/*.sqlite
+          database/*.sqlite-journal
+          database/*.sqlite-wal
+          database/*.sqlite-shm
           EOF
 
           echo "🚀 Synchronizing application files via Rsync to $DEPLOY_PATH ..."
@@ -153,9 +157,11 @@ jobs:
             set -e
             cd $DEPLOY_PATH
 
-            # Ensure storage directories exist with correct permissions
-            mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
+            # Ensure storage & database directories exist with correct permissions
+            mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache database
+            touch database/database.sqlite || true
+            chmod -R 775 storage bootstrap/cache database
+            chmod 664 database/database.sqlite || true
 
             # Run artisan optimization and migrations
             if [ -f 'artisan' ]; then
