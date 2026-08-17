@@ -24,12 +24,17 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, bcmath, zip, curl, fileinfo
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, pdo_sqlite, sqlite3, bcmath, zip, curl, fileinfo
           coverage: none
 
       - name: Install Composer Dependencies
         run: |
           composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
+
+      - name: Build Database & Run Migrations with Seeders
+        run: |
+          touch database/database.sqlite
+          php artisan migrate:fresh --seed --force
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -132,7 +137,6 @@ jobs:
           phpunit.xml
           .editorconfig
           .rsync-exclude
-          database/*.sqlite
           database/*.sqlite-journal
           database/*.sqlite-wal
           database/*.sqlite-shm
