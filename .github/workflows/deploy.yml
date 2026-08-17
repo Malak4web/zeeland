@@ -40,11 +40,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-composer-
 
+      - name: Configure Composer & Git Authentication
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          composer config --global github-oauth.github.com "${{ secrets.GITHUB_TOKEN }}"
+          composer config --global process-timeout 600
+
       - name: Install Composer Dependencies
         env:
           COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ secrets.GITHUB_TOKEN }}"}}'
         run: |
-          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs || \
+          composer install --no-dev --no-interaction --prefer-source --optimize-autoloader --ignore-platform-reqs
 
       - name: Build Database & Run Migrations with Seeders
         run: |
