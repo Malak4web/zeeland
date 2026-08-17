@@ -1,0 +1,134 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production_deployment
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to cPanel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, bcmath, zip, curl, fileinfo
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: |
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install NPM Dependencies & Build Assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup SSH & Deploy via Rsync to cPanel
+        env:
+          SSH_KEY: ${{ secrets.ssh_key || secrets.SSH_KEY }}
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER || secrets.SSH_USERNAME }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || secrets.SSH_TARGET_DIR || 'public_html' }}
+        run: |
+          # Create ssh directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Scan host key to known_hosts
+          if [ -n "$SSH_HOST" ]; then
+            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+
+          # Setup SSH Private Key if provided
+          if [ -n "$SSH_KEY" ]; then
+            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+          fi
+
+          # Install sshpass for password/passphrase fallback
+          sudo apt-get update -y && sudo apt-get install -y sshpass rsync
+
+          # Define SSH command
+          if [ -n "$SSH_KEY" ]; then
+            if [ -n "$SSH_PASS" ]; then
+              # Key with Passphrase
+              SSH_CMD="sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_rsa"
+            else
+              # Key without Passphrase
+              SSH_CMD="ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_rsa"
+            fi
+          elif [ -n "$SSH_PASS" ]; then
+            # Password authentication
+            SSH_CMD="sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no -p $SSH_PORT"
+          else
+            echo "Error: Neither ssh_key nor SSH_PASSWORD was configured in GitHub Secrets!"
+            exit 1
+          fi
+
+          # Exclude non-production / sensitive files from sync
+          cat << 'EOF' > .rsync-exclude
+          .git/
+          .github/
+          .env
+          .env.*
+          node_modules/
+          tests/
+          .phpunit.result.cache
+          phpunit.xml
+          .editorconfig
+          .rsync-exclude
+          EOF
+
+          echo "🚀 Deploying files to $SSH_USER@$SSH_HOST:$DEPLOY_PATH ..."
+          rsync -avz --delete \
+            -e "$SSH_CMD" \
+            --exclude-from='.rsync-exclude' \
+            --exclude='storage/app/public/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*' \
+            --exclude='storage/framework/cache/*' \
+            --exclude='storage/logs/*' \
+            --exclude='public/uploads/*' \
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+          echo "⚙️ Running post-deployment Artisan commands on cPanel..."
+          eval "$SSH_CMD $SSH_USER@$SSH_HOST" << EOF
+            set -e
+            cd $DEPLOY_PATH
+
+            # Ensure storage directories exist with correct permissions
+            mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+
+            # Run artisan optimization and migrations
+            if [ -f "artisan" ]; then
+              php artisan storage:link --quiet || true
+              php artisan migrate --force || true
+              php artisan optimize:clear || true
+              php artisan config:cache || true
+              php artisan route:cache || true
+              php artisan view:cache || true
+            fi
+          EOF
+
+          echo "✅ Deployment completed successfully!"
