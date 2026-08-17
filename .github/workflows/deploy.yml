@@ -8,12 +8,13 @@ on:
 
 concurrency:
   group: production_deployment
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
     name: Build & Deploy to cPanel
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Code
@@ -50,40 +51,56 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || secrets.SSH_TARGET_DIR || 'public_html' }}
         run: |
-          # Create ssh directory
+          set -e
+
+          echo "🔐 Preparing SSH Configuration..."
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Scan host key to known_hosts
-          if [ -n "$SSH_HOST" ]; then
-            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          fi
-
-          # Setup SSH Private Key if provided
-          if [ -n "$SSH_KEY" ]; then
-            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
-          fi
-
-          # Install sshpass for password/passphrase fallback
-          sudo apt-get update -y && sudo apt-get install -y sshpass rsync
-
-          # Define SSH command
-          if [ -n "$SSH_KEY" ]; then
-            if [ -n "$SSH_PASS" ]; then
-              # Key with Passphrase
-              SSH_CMD="sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_rsa"
-            else
-              # Key without Passphrase
-              SSH_CMD="ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_rsa"
-            fi
-          elif [ -n "$SSH_PASS" ]; then
-            # Password authentication
-            SSH_CMD="sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no -p $SSH_PORT"
-          else
-            echo "Error: Neither ssh_key nor SSH_PASSWORD was configured in GitHub Secrets!"
+          # Validate secrets
+          if [ -z "$SSH_HOST" ]; then
+            echo "❌ Error: SSH_HOST secret is missing in GitHub Repository Secrets!"
             exit 1
           fi
+          if [ -z "$SSH_USER" ]; then
+            echo "❌ Error: SSH_USER (or SSH_USERNAME) secret is missing in GitHub Repository Secrets!"
+            exit 1
+          fi
+
+          # Prepare SSH Key
+          USE_KEY=false
+          if [ -n "$SSH_KEY" ]; then
+            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa_raw
+            chmod 600 ~/.ssh/id_rsa_raw
+
+            # If key has a passphrase, decrypt it in the runner so SSH never prompts
+            if [ -n "$SSH_PASS" ]; then
+              openssl rsa -in ~/.ssh/id_rsa_raw -out ~/.ssh/id_rsa -passin pass:"$SSH_PASS" 2>/dev/null || cp ~/.ssh/id_rsa_raw ~/.ssh/id_rsa
+            else
+              cp ~/.ssh/id_rsa_raw ~/.ssh/id_rsa
+            fi
+            chmod 600 ~/.ssh/id_rsa
+            USE_KEY=true
+          fi
+
+          # Register Host Key
+          ssh-keyscan -T 10 -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          # Build SSH Command with strict timeouts to prevent hanging
+          SSH_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+
+          if [ "$USE_KEY" = "true" ]; then
+            SSH_CMD="ssh $SSH_OPTS -i ~/.ssh/id_rsa"
+          elif [ -n "$SSH_PASS" ]; then
+            sudo apt-get install -y sshpass
+            SSH_CMD="sshpass -p '$SSH_PASS' ssh $SSH_OPTS"
+          else
+            echo "❌ Error: Neither ssh_key nor SSH_PASSWORD is provided in GitHub Secrets!"
+            exit 1
+          fi
+
+          echo "🔍 Testing SSH connection to $SSH_USER@$SSH_HOST:$SSH_PORT ..."
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "echo '✅ SSH Connection Successful to cPanel! Current directory: \$(pwd)'"
 
           # Exclude non-production / sensitive files from sync
           cat << 'EOF' > .rsync-exclude
@@ -99,7 +116,7 @@ jobs:
           .rsync-exclude
           EOF
 
-          echo "🚀 Deploying files to $SSH_USER@$SSH_HOST:$DEPLOY_PATH ..."
+          echo "🚀 Synchronizing files via Rsync to $DEPLOY_PATH ..."
           rsync -avz --delete \
             -e "$SSH_CMD" \
             --exclude-from='.rsync-exclude' \
@@ -111,8 +128,8 @@ jobs:
             --exclude='public/uploads/*' \
             ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
-          echo "⚙️ Running post-deployment Artisan commands on cPanel..."
-          eval "$SSH_CMD $SSH_USER@$SSH_HOST" << EOF
+          echo "⚙️ Executing Artisan commands on cPanel..."
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "
             set -e
             cd $DEPLOY_PATH
 
@@ -121,7 +138,7 @@ jobs:
             chmod -R 775 storage bootstrap/cache
 
             # Run artisan optimization and migrations
-            if [ -f "artisan" ]; then
+            if [ -f 'artisan' ]; then
               php artisan storage:link --quiet || true
               php artisan migrate --force || true
               php artisan optimize:clear || true
@@ -129,6 +146,6 @@ jobs:
               php artisan route:cache || true
               php artisan view:cache || true
             fi
-          EOF
+          "
 
-          echo "✅ Deployment completed successfully!"
+          echo "🎉 Deployment finished successfully!"
