@@ -26,8 +26,13 @@ class ReportController extends Controller
         $collected = (float) Payment::whereBetween('paid_at', [$from, $to])->sum('amount');
 
         // Sales by month across the chosen range.
+        $driver = DB::connection()->getDriverName();
+        $dateSql = $driver === 'sqlite'
+            ? "strftime('%Y-%m', order_date)"
+            : "DATE_FORMAT(order_date, '%Y-%m')";
+
         $byMonth = $billable()
-            ->select(DB::raw("DATE_FORMAT(order_date, '%Y-%m') as ym"), DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as n'))
+            ->select(DB::raw("{$dateSql} as ym"), DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as n'))
             ->groupBy('ym')->orderBy('ym')->get();
 
         // Volume by product, in packs and in kilos.

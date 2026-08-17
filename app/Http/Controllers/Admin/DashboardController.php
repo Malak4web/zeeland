@@ -79,12 +79,16 @@ class DashboardController extends Controller
     private function monthlySeries(int $months): array
     {
         $start = Carbon::now()->startOfMonth()->subMonths($months - 1);
+        $driver = DB::connection()->getDriverName();
+        $dateSql = $driver === 'sqlite'
+            ? "strftime('%Y-%m', order_date)"
+            : "DATE_FORMAT(order_date, '%Y-%m')";
 
         $rows = Order::query()
             ->whereIn('status', Order::BILLABLE)
             ->where('order_date', '>=', $start)
             ->select(
-                DB::raw("DATE_FORMAT(order_date, '%Y-%m') as ym"),
+                DB::raw("{$dateSql} as ym"),
                 DB::raw('SUM(total) as total'),
                 DB::raw('COUNT(*) as orders'),
             )

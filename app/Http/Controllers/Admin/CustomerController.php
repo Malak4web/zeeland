@@ -160,11 +160,15 @@ class CustomerController extends Controller
     private function monthlySpend(Customer $customer): array
     {
         $start = Carbon::now()->startOfMonth()->subMonths(5);
+        $driver = DB::connection()->getDriverName();
+        $dateSql = $driver === 'sqlite'
+            ? "strftime('%Y-%m', order_date)"
+            : "DATE_FORMAT(order_date, '%Y-%m')";
 
         $rows = $customer->orders()
             ->whereIn('status', Order::BILLABLE)
             ->where('order_date', '>=', $start)
-            ->select(DB::raw("DATE_FORMAT(order_date, '%Y-%m') as ym"), DB::raw('SUM(total) as total'))
+            ->select(DB::raw("{$dateSql} as ym"), DB::raw('SUM(total) as total'))
             ->groupBy('ym')->pluck('total', 'ym');
 
         $out = [];
