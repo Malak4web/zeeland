@@ -1,0 +1,20 @@
+{
+  "name": "zeeland",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Zeeland — Arabic landing page, blog and operations dashboard",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "tailwindcss": "^4.1.11",
+    "vite": "^7.0.0"
+  }
+}

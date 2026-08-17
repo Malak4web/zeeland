@@ -1,0 +1,720 @@
+@import 'tailwindcss' source(none);
+
+/* Same palette as the public site, both themes. */
+@import './theme.css';
+
+@source '../js/admin';
+@source '../js/theme.js';
+@source '../views/admin';
+@source '../views/layouts/admin.blade.php';
+@source '../views/partials';
+@source '../views/components';
+
+/* ==========================================================================
+   Zeeland — لوحة التحكم
+   ---------------------------------------------------------------------------
+   Same world as the public site (the freezer navy, the flame signal), but the
+   rules change because the visitor changed: this is someone in the middle of a
+   task, not someone being persuaded.
+
+   What that means concretely, versus the landing page:
+     · fixed rem type scale, no clamp() — a heading that shrinks inside a panel
+       looks broken, not responsive
+     · one family (Readex Pro) carries labels, buttons, body; Zain appears only
+       on the login screen. Display faces in UI labels are a costume.
+     · Martian Mono carries every number, which is most of this app
+     · a full semantic state vocabulary (paid / partial / due / overdue), because
+       colour alone must never be the carrier — every state also has a word
+   ========================================================================== */
+
+/* Surfaces, ink, signal and the state vocabulary all come from theme.css —
+   the dashboard and the site are the same world under the same two lights.
+   Only the type scale is the dashboard's own. */
+@theme {
+  /* fixed scale, ratio ~1.15 — dense UI needs small steps, not drama */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.775rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.95rem;
+  --text-lg: 1.09rem;
+  --text-xl: 1.28rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.85rem;
+}
+
+@layer base {
+  * {
+    min-width: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 300;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+  }
+
+  /* One visible focus treatment everywhere — the readable orange, not the
+     fill orange, which only reaches 3.2:1 on a pale ground. */
+  :focus-visible {
+    outline: 2px solid var(--flame-ink);
+    outline-offset: 2px;
+    border-radius: 0.35rem;
+  }
+
+  /* Latin-only mono: never let it near Arabic text. */
+  .num {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: -0.045em;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  [dir='rtl'] input[type='date'],
+  [dir='rtl'] input[type='datetime-local'] {
+    direction: ltr;
+    text-align: start;
+  }
+
+  /* Placeholders are text and answer to the same 4.5:1 as any other text —
+     the faded grey placeholder is the single most common contrast failure. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--ink-3);
+    opacity: 1; /* Firefox dims placeholders by default */
+  }
+
+  /* Chrome ships a near-black calendar/number widget. Inverting it is right
+     on a dark panel and erases it on a pale one, so the filter is a token. */
+  ::-webkit-calendar-picker-indicator {
+    filter: var(--picker-filter);
+    cursor: pointer;
+  }
+}
+
+/* ==========================================================================
+   Controls — one vocabulary, every state present.
+   ========================================================================== */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    padding: 0.6rem 1.05rem;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    line-height: 1.2;
+    min-height: 2.75rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.18s var(--ease-out-quart),
+      border-color 0.18s var(--ease-out-quart),
+      color 0.18s var(--ease-out-quart),
+      transform 0.12s var(--ease-out-quart);
+  }
+  .btn:active {
+    transform: scale(0.975);
+  }
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .btn-primary {
+    background: var(--flame);
+    color: var(--on-flame);
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: var(--flame-hi);
+  }
+
+  .btn-ghost {
+    border-color: var(--surface-2);
+    color: var(--ink-2);
+    background: transparent;
+  }
+  .btn-ghost:hover {
+    border-color: var(--surface-3);
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .btn-solid {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .btn-solid:hover {
+    background: var(--surface-3);
+  }
+
+  .btn-danger {
+    border-color: color-mix(in oklab, var(--bad) 45%, transparent);
+    color: var(--bad);
+    background: transparent;
+  }
+  .btn-danger:hover {
+    background: color-mix(in oklab, var(--bad) 14%, transparent);
+  }
+
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0.4rem 0.8rem;
+    font-size: var(--text-xs);
+    border-radius: 0.6rem;
+  }
+
+  .btn-icon {
+    padding: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-height: 0;
+  }
+
+  /* ---------------------------------------------------------------- fields */
+
+  .field {
+    width: 100%;
+    border-radius: 0.7rem;
+    border: 1px solid var(--field-line);
+    background: var(--field-bg);
+    padding: 0.62rem 0.85rem;
+    font-size: var(--text-base);
+    font-weight: 300;
+    color: var(--ink);
+    min-height: 2.75rem;
+    transition:
+      border-color 0.18s var(--ease-out-quart),
+      background-color 0.18s var(--ease-out-quart);
+  }
+  .field:hover:not(:disabled) {
+    border-color: var(--ink-3);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--flame-ink);
+    background: var(--field-bg-focus);
+  }
+  .field:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .field[aria-invalid='true'] {
+    border-color: var(--bad);
+  }
+  .field.num {
+    font-size: var(--text-sm);
+  }
+
+  textarea.field {
+    line-height: 1.8;
+    resize: vertical;
+    min-height: 6rem;
+  }
+
+  /* A drawn chevron rather than two stacked gradients — the gradient trick
+     renders as a filled wedge at small sizes and reads as a corner, not a
+     control affordance. */
+  select.field {
+    appearance: none;
+    padding-inline-end: 2.25rem;
+    background-image: var(--select-arrow);
+    background-position: left 0.85rem center;
+    background-size: 13px 8px;
+    background-repeat: no-repeat;
+  }
+
+  .label {
+    display: block;
+    margin-block-end: 0.4rem;
+    font-size: var(--text-xs);
+    font-weight: 400;
+    color: var(--ink-2);
+  }
+
+  .hint {
+    margin-block-start: 0.35rem;
+    font-size: var(--text-xs);
+    line-height: 1.6;
+    color: var(--ink-3);
+  }
+
+  .error {
+    margin-block-start: 0.35rem;
+    font-size: var(--text-xs);
+    line-height: 1.6;
+    color: var(--bad);
+  }
+
+  /* --------------------------------------------------------------- surfaces */
+
+  .panel {
+    border: 1px solid var(--surface-2);
+    border-radius: 1rem;
+    background: color-mix(in oklab, var(--surface) 55%, transparent);
+  }
+
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1.15rem;
+    border-block-end: 1px solid var(--surface-2);
+  }
+
+  .panel-title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* ----------------------------------------------------------------- badges */
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    border-radius: 999px;
+    padding: 0.18rem 0.6rem;
+    font-size: var(--text-2xs);
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .badge::before {
+    content: '';
+    width: 0.36rem;
+    height: 0.36rem;
+    border-radius: 999px;
+    background: currentColor;
+    flex: none;
+  }
+  .badge-good {
+    color: var(--good);
+    background: color-mix(in oklab, var(--good) 12%, transparent);
+    border-color: color-mix(in oklab, var(--good) 26%, transparent);
+  }
+  .badge-warn {
+    color: var(--warn);
+    background: color-mix(in oklab, var(--warn) 12%, transparent);
+    border-color: color-mix(in oklab, var(--warn) 26%, transparent);
+  }
+  .badge-bad {
+    color: var(--bad);
+    background: color-mix(in oklab, var(--bad) 12%, transparent);
+    border-color: color-mix(in oklab, var(--bad) 30%, transparent);
+  }
+  .badge-flame {
+    color: var(--flame-ink-hi);
+    background: color-mix(in oklab, var(--flame) 12%, transparent);
+    border-color: color-mix(in oklab, var(--flame) 28%, transparent);
+  }
+  .badge-idle {
+    color: var(--ink-3);
+    background: color-mix(in oklab, var(--surface-2) 70%, transparent);
+    border-color: var(--surface-2);
+  }
+  .badge-frost {
+    color: var(--frost-ink);
+    background: color-mix(in oklab, var(--frost) 10%, transparent);
+    border-color: color-mix(in oklab, var(--frost) 24%, transparent);
+  }
+
+  /* ----------------------------------------------------------------- tables */
+
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .tbl th {
+    text-align: start;
+    font-size: var(--text-2xs);
+    font-weight: 500;
+    color: var(--ink-3);
+    padding: 0.7rem 0.85rem;
+    border-block-end: 1px solid var(--surface-2);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: var(--ground);
+    z-index: 1;
+  }
+  .tbl td {
+    padding: 0.8rem 0.85rem;
+    border-block-end: 1px solid color-mix(in oklab, var(--surface-2) 60%, transparent);
+    color: var(--ink-2);
+    vertical-align: middle;
+  }
+  .tbl tbody tr {
+    transition: background-color 0.15s var(--ease-out-quart);
+  }
+  .tbl tbody tr:hover {
+    background: color-mix(in oklab, var(--surface) 55%, transparent);
+  }
+  .tbl tbody tr:last-child td {
+    border-block-end: 0;
+  }
+  .tbl .strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* A link that is the whole content of a cell is a target, not prose, so it
+     needs the 24px minimum (WCAG 2.5.8) rather than its 13px text box. */
+  .tbl td a:not(.btn) {
+    display: inline-block;
+    padding-block: 0.35rem;
+  }
+
+  .row-link {
+    display: block;
+    color: inherit;
+  }
+
+  /* ------------------------------------------------------------ app shell -- */
+
+  .a-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    border-radius: 0.7rem;
+    padding: 0.55rem 0.75rem;
+    font-size: var(--text-sm);
+    color: var(--ink-2);
+    transition:
+      background-color 0.15s var(--ease-out-quart),
+      color 0.15s var(--ease-out-quart);
+  }
+  .a-nav-item:hover {
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .a-nav-item[aria-current='page'] {
+    background: color-mix(in oklab, var(--flame) 14%, transparent);
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .a-nav-item[aria-current='page'] svg {
+    color: var(--flame);
+  }
+
+  .a-nav-group {
+    margin-block-start: 1.35rem;
+    padding-inline: 0.75rem;
+    font-size: var(--text-2xs);
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+
+  /* ----------------------------------------------------------- bottom sheet */
+
+  .sheet {
+    width: min(100%, 42rem);
+    max-width: 100%;
+    max-height: 92dvh;
+    margin: auto auto 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .sheet::backdrop {
+    background: color-mix(in oklab, var(--ground) 78%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .sheet-panel {
+    border-radius: 1.5rem 1.5rem 0 0;
+    border: 1px solid var(--surface-2);
+    border-block-end: 0;
+    background: var(--surface);
+    padding: 0.75rem 1.15rem calc(1.35rem + env(safe-area-inset-bottom));
+    max-height: 92dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .sheet[open] .sheet-panel {
+    animation: sheet-up 0.32s var(--ease-out-expo);
+  }
+  .sheet[open]::backdrop {
+    animation: sheet-fade 0.25s ease-out;
+  }
+  .sheet.is-closing .sheet-panel {
+    animation: sheet-down 0.2s ease-in forwards;
+  }
+  .sheet.is-closing::backdrop {
+    animation: sheet-fade 0.2s ease-in reverse forwards;
+  }
+  .sheet-grip {
+    width: 2.5rem;
+    height: 0.25rem;
+    border-radius: 999px;
+    background: var(--surface-3);
+    margin: 0.25rem auto 0.9rem;
+  }
+
+  @media (width >= 48rem) {
+    .sheet {
+      margin: auto;
+    }
+    .sheet-panel {
+      border-radius: 1.25rem;
+      border-block-end: 1px solid var(--surface-2);
+      padding-block-end: 1.35rem;
+    }
+    .sheet[open] .sheet-panel {
+      animation: sheet-pop 0.24s var(--ease-out-expo);
+    }
+    .sheet-grip {
+      display: none;
+    }
+  }
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-down {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-pop {
+    from {
+      transform: scale(0.97);
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* ------------------------------------------------------- article editor -
+   | The writing surface renders close to how the article will actually look
+   | on the site, so an editor is not guessing what a heading does.
+   * ---------------------------------------------------------------------- */
+
+  .post-editor {
+    font-size: 1rem;
+    line-height: 1.95;
+  }
+  .post-editor:empty::before {
+    content: 'ابدأ اكتب هنا…';
+    color: var(--ink-3);
+  }
+  .post-editor > * + * {
+    margin-block-start: 1.15em;
+  }
+  .post-editor h2,
+  .post-editor h3,
+  .post-editor h4 {
+    color: var(--ink);
+    font-weight: 600;
+    line-height: 1.35;
+    margin-block-start: 1.9em;
+    margin-block-end: 0.5em;
+  }
+  .post-editor h2 {
+    font-size: 1.45em;
+  }
+  .post-editor h3 {
+    font-size: 1.2em;
+  }
+  .post-editor h4 {
+    font-size: 1.05em;
+  }
+  .post-editor h2::before {
+    content: '';
+    display: block;
+    width: 2rem;
+    height: 2px;
+    background: var(--flame);
+    margin-block-end: 0.6rem;
+  }
+  .post-editor strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .post-editor a {
+    color: var(--flame-hi);
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+  .post-editor ul,
+  .post-editor ol {
+    padding-inline-start: 1.5em;
+  }
+  .post-editor ul {
+    list-style: disc;
+  }
+  .post-editor ol {
+    list-style: arabic-indic;
+  }
+  .post-editor blockquote {
+    border: 1px solid var(--surface-3);
+    background: color-mix(in oklab, var(--surface) 60%, transparent);
+    border-radius: 0.9rem;
+    padding: 1rem 1.15rem;
+    color: var(--ink);
+  }
+  .post-editor img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+    border: 1px solid var(--surface-2);
+  }
+  .post-editor figcaption {
+    margin-block-start: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .post-editor hr {
+    border: 0;
+    border-block-start: 1px solid var(--surface-2);
+    margin-block: 2em;
+  }
+
+  /* -------------------------------------------------------------- skeleton */
+
+  .skel {
+    background: linear-gradient(
+      90deg,
+      var(--surface) 25%,
+      var(--surface-2) 37%,
+      var(--surface) 63%
+    );
+    background-size: 400% 100%;
+    animation: skel 1.4s ease infinite;
+    border-radius: 0.5rem;
+  }
+  @keyframes skel {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Long lists get a real scrollbar, just a quiet one. */
+@utility thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+@media (hover: none) {
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ==========================================================================
+   Print — the account statement and the delivery note are real documents.
+   Black on white, no chrome, no colour dependency.
+   ========================================================================== */
+@media print {
+  @page {
+    margin: 14mm;
+    size: A4;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  .no-print,
+  .a-sidebar,
+  .a-dock,
+  .a-topbar,
+  nav[aria-label='التنقّل الرئيسي'] {
+    display: none !important;
+  }
+
+  .print-plain,
+  .panel {
+    border-color: #999 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .tbl th {
+    color: #000 !important;
+    background: #fff !important;
+    border-color: #999 !important;
+  }
+  .tbl td {
+    color: #000 !important;
+    border-color: #ccc !important;
+  }
+  .tbl .strong,
+  h1,
+  h2,
+  h3 {
+    color: #000 !important;
+  }
+
+  .badge {
+    border-color: #999 !important;
+    color: #000 !important;
+    background: none !important;
+  }
+
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

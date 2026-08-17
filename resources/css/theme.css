@@ -1,0 +1,399 @@
+/* ==========================================================================
+   Zeeland — the two lights
+   ---------------------------------------------------------------------------
+   One design in two rooms. The site was built drenched navy (the freezer);
+   this file adds the daylight version without forking the design.
+
+   HOW IT WORKS
+   Every colour is declared twice as a ROLE (--ground, --ink, --flame …) and
+   the Tailwind palette maps onto those roles through `@theme inline`. Because
+   the mapping is inline, `bg-abyss` compiles to `background-color: var(--ground)`
+   and resolves AT THE ELEMENT — so any subtree can carry its own `data-theme`
+   and re-light itself. The hero's product stage uses exactly that: it stays
+   dark in daylight because its images are composited with `mix-blend-screen`,
+   which turns pure white on a light panel and would erase the product.
+
+   READING THE OLD NAMES
+   The Tailwind names are the brand's material vocabulary and they did not
+   change: `abyss` is always the deepest surface, `cream` is always the ink.
+   In daylight the deepest surface is a pale cold white and the ink is navy —
+   the position on the ramp is what the name promises, not the hex.
+
+   WHERE THAT PROMISE BREAKS, THERE IS A REAL TOKEN
+     · `on-flame`   — ink that sits ON the orange fill. Dark in BOTH themes,
+                      because the fill is orange in both. `text-abyss` on a
+                      flame button would have gone white-on-orange (2.3:1).
+     · `flame-ink`  — orange you can READ. The fill orange is 3.2:1 on a pale
+                      ground: fine for a button edge, illegal for a 12px label.
+     · `frost-ink`  — the same split for the cold blue.
+     · `invert`     — the spec-sheet band, which is always the opposite of the
+                      page. Paper in the dark theme, navy in the light one.
+
+   Every pair below is verified with a WCAG checker that composites alpha in
+   gamma space and rejects out-of-gamut chroma: 62 pairs, both themes, body
+   text >= 4.5:1, large text and control boundaries >= 3:1. See DESIGN.md.
+   ========================================================================== */
+
+/* ── DARK — the shipped identity, unchanged ──────────────────────────────── */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ground: oklch(0.16 0.04 250);
+  --surface: oklch(0.21 0.052 250);
+  --surface-2: oklch(0.26 0.062 251);
+  --surface-3: oklch(0.33 0.07 252);
+  --mute: oklch(0.52 0.045 250);
+
+  /* The one border that is an affordance rather than a decoration. A text
+     field is only identifiable by its outline, so WCAG 1.4.11 asks for 3:1
+     against the panel behind it — which the hairline greys never reached. */
+  --field-line: oklch(0.51 0.055 252);
+
+  --ink: oklch(0.95 0.03 90);
+  --ink-2: oklch(0.8 0.032 88);
+  --ink-3: oklch(0.7 0.03 86);
+
+  --flame: oklch(0.7 0.185 48);
+  --flame-hi: oklch(0.8 0.144 62);
+  --flame-ink: oklch(0.7 0.185 48);
+  --flame-ink-hi: oklch(0.8 0.144 62);
+  --on-flame: #ffffff;
+
+  --frost: oklch(0.85 0.06 225);
+  --frost-ink: oklch(0.85 0.06 225);
+
+  --invert: oklch(0.97 0.012 90);
+
+  --good: oklch(0.79 0.145 163);
+  --warn: oklch(0.84 0.13 88);
+  --bad: oklch(0.72 0.174 25);
+  --idle: oklch(0.66 0.03 250);
+
+  /* Shadow is a material, not a colour: in the dark it is absence of light,
+     in daylight it is the brand navy at low alpha. Pure black on a pale
+     ground reads as dirt. */
+  --shadow-1: oklch(0 0 0 / 0.5);
+  --shadow-2: oklch(0 0 0 / 0.85);
+  --shadow-3: oklch(0 0 0 / 0.95);
+
+  /* `overlay` lifts the grain out of a dark field; on a pale one it does
+     nothing at all, so daylight multiplies a far fainter pass instead. */
+  --grain-blend: overlay;
+  --grain-opacity: 0.32;
+
+  /* Ambient light bleed: full strength in the dark, a whisper in daylight. */
+  --bloom: 1;
+
+  --scrim: oklch(0.05 0.02 250 / 0.68);
+  /* A sheet sits ABOVE the page, so it moves away from the ground: darker
+     than the surface at night, brighter than it in daylight. */
+  --sheet-bg: oklch(0.2 0.05 250);
+  --picker-filter: invert(0.85) sepia(0.2);
+  /* An input is a well you type into: recessed at night, plain white in
+     daylight where a tinted field would read as disabled. */
+  /* Sidebar and top bar. A 45% veil separates them from a dark ground; on a
+     pale one the same veil lands within a hair of the page and the chrome
+     stops reading as chrome, so daylight uses the solid surface. */
+  --chrome: color-mix(in oklab, var(--surface) 45%, transparent);
+  --field-bg: color-mix(in oklab, var(--surface) 78%, transparent);
+  --field-bg-focus: var(--surface);
+
+  /* A data URI cannot read a custom property, so the chevron ships twice. */
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' fill='none' stroke='%23a79e8a' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* ── LIGHT — a cold room, not a sheet of paper ───────────────────────────────
+   The whole ramp stays in the brand's navy hue family (250-254). It is
+   deliberately NOT a warm near-white: cream/sand grounds are the reflex answer
+   to "light mode", and they would also fight the flame orange. Surfaces step
+   DOWN from the ground here, the mirror of the dark theme where panels step
+   up - either way a panel separates from its page.
+
+   ONE copy of these values exists, on purpose. The boot snippet in the layout
+   head resolves the OS preference and stamps `data-theme` before first paint,
+   so a `prefers-color-scheme` block would only ever serve visitors with
+   scripting off - and it would be a second copy of thirty numbers to keep in
+   sync. Those visitors get the dark theme, which is the brand default and
+   carries the same verified contrast.
+
+   The selector is attribute-only rather than `:root[...]` so that any element
+   can re-light its own subtree; the hero's product stage relies on it. */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --ground: oklch(0.976 0.009 252);
+  --surface: oklch(0.951 0.012 252);
+  --surface-2: oklch(0.906 0.016 252);
+  --surface-3: oklch(0.845 0.022 252);
+  --mute: oklch(0.58 0.035 252);
+  --field-line: oklch(0.6 0.04 252);
+
+  --ink: oklch(0.245 0.05 254);
+  --ink-2: oklch(0.415 0.042 254);
+  --ink-3: oklch(0.485 0.036 254);
+
+  --flame: oklch(0.655 0.192 44);
+  --flame-hi: oklch(0.72 0.17 52);
+  --flame-ink: oklch(0.505 0.161 40);
+  --flame-ink-hi: oklch(0.42 0.14 36);
+  --on-flame: #ffffff;
+
+  --frost: oklch(0.62 0.115 236);
+  --frost-ink: oklch(0.48 0.105 240);
+
+  --invert: oklch(0.21 0.052 250);
+
+  --good: oklch(0.472 0.103 163);
+  --warn: oklch(0.478 0.099 74);
+  --bad: oklch(0.505 0.19 27);
+  --idle: oklch(0.5 0.025 252);
+
+  --shadow-1: oklch(0.42 0.05 254 / 0.09);
+  --shadow-2: oklch(0.4 0.055 254 / 0.16);
+  --shadow-3: oklch(0.38 0.06 254 / 0.22);
+
+  --grain-blend: multiply;
+  --grain-opacity: 0.055;
+  --bloom: 0.3;
+
+  --scrim: oklch(0.28 0.05 252 / 0.42);
+  --sheet-bg: oklch(0.995 0.004 252);
+  --picker-filter: none;
+  --chrome: var(--surface);
+  --field-bg: oklch(1 0 0);
+  --field-bg-focus: oklch(1 0 0);
+
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' fill='none' stroke='%23516073' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* ==========================================================================
+   Tailwind palette → roles.
+   `inline` is load-bearing: it compiles `bg-abyss` straight to `var(--ground)`
+   instead of `var(--color-abyss)`, so the value is looked up on the element and a
+   nested `data-theme` actually wins. Without it every utility would freeze to
+   whatever `:root` resolved to.
+   ========================================================================== */
+@theme inline {
+  --color-abyss: var(--ground);
+  --color-navy: var(--surface);
+  --color-navy-2: var(--surface-2);
+  --color-navy-3: var(--surface-3);
+  --color-steel: var(--mute);
+  --color-line: var(--field-line);
+
+  --color-cream: var(--ink);
+  --color-cream-2: var(--ink-2);
+  --color-cream-3: var(--ink-3);
+  --color-paper: var(--invert);
+
+  --color-flame: var(--flame);
+  --color-flame-hi: var(--flame-hi);
+  --color-flame-ink: var(--flame-ink);
+  --color-flame-ink-hi: var(--flame-ink-hi);
+  --color-on-flame: var(--on-flame);
+
+  --color-frost: var(--frost);
+  --color-frost-ink: var(--frost-ink);
+
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-idle: var(--idle);
+}
+
+@theme {
+  --font-display: 'Zain', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Readex Pro', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Martian Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-fab: 40;
+  --z-dock: 40;
+  --z-backdrop: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+}
+
+/* ==========================================================================
+   Shared base that depends on the roles
+   ========================================================================== */
+@layer base {
+  /* Native selects paint their popup with system colours on Windows unless the
+     options are painted explicitly — and a dark popup on a light page is the
+     tell that a theme was bolted on. */
+  select {
+    appearance: none;
+    background-image: var(--select-arrow);
+    background-repeat: no-repeat;
+    /* physical `left` == inline-end in RTL; LTR overrides to right */
+    background-position: left 1rem center;
+  }
+  html[dir='ltr'] select {
+    background-position: right 1rem center;
+  }
+  select option {
+    background-color: var(--surface-2);
+    color: var(--ink);
+  }
+
+  html {
+    scrollbar-color: var(--surface-3) var(--ground);
+  }
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--ground);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--surface-3);
+    border-radius: 99px;
+    border: 3px solid var(--ground);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--mute);
+  }
+
+  ::selection {
+    background-color: var(--flame);
+    color: var(--on-flame);
+  }
+}
+
+/* ==========================================================================
+   The switch
+   Two icons stacked in one grid cell and cross-faded, rather than swapped:
+   swapping blinks, and a crescent punched out with a background-coloured
+   circle breaks the moment the button moves onto a different surface.
+   The button shows the theme you would GET, which is the convention every
+   OS uses — a moon means "go dark".
+   ========================================================================== */
+@layer components {
+  /* The boot script stamps data-theme before first paint, so a missing
+     attribute means scripting never ran and the control cannot work. */
+  :root:not([data-theme]) .theme-toggle {
+    display: none;
+  }
+
+  .theme-toggle {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+
+  .theme-toggle > svg {
+    grid-area: 1 / 1;
+    transition:
+      opacity 0.25s linear,
+      transform 0.5s var(--ease-out-expo);
+  }
+
+  .theme-toggle .i-moon {
+    opacity: 0;
+    transform: rotate(-65deg) scale(0.55);
+  }
+  .theme-toggle .i-sun {
+    opacity: 1;
+    transform: none;
+  }
+
+  [data-theme='light'] .theme-toggle .i-sun {
+    opacity: 0;
+    transform: rotate(65deg) scale(0.55);
+  }
+  [data-theme='light'] .theme-toggle .i-moon {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   The swap itself
+   A hard cut between two full-page palettes is jarring, and letting every
+   `transition-colors` on the page fire at once is worse — it smears at
+   different speeds per element. Instead the new theme is revealed as one
+   circle growing out of the button. `data-theme-anim` is only present for the
+   duration of a scripted swap, so a normal page load never animates.
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  html[data-theme-anim]::view-transition-old(root) {
+    z-index: 1;
+  }
+  html[data-theme-anim]::view-transition-new(root) {
+    z-index: 2;
+    animation: theme-wipe 0.55s var(--ease-out-quart);
+  }
+
+  @keyframes theme-wipe {
+    from {
+      clip-path: circle(0 at var(--wipe-x) var(--wipe-y));
+    }
+    to {
+      clip-path: circle(var(--wipe-r) at var(--wipe-x) var(--wipe-y));
+    }
+  }
+}
+
+/* ==========================================================================
+   Paper
+   A printed page has one appearance regardless of the theme on screen, and
+   overriding the ROLES here fixes every component at once — the alternative
+   is chasing each one with `!important` and still missing the muted text.
+   Colour is not load-bearing on paper: the accents collapse to ink so a
+   mono printer loses nothing.
+   ========================================================================== */
+@media print {
+  :root {
+    color-scheme: light;
+
+    --ground: #fff;
+    --surface: #fff;
+    --surface-2: #fff;
+    --surface-3: #999;
+    --mute: #666;
+    --field-line: #999;
+
+    --ink: #000;
+    --ink-2: #1a1a1a;
+    --ink-3: #444;
+
+    --flame: #000;
+    --flame-hi: #000;
+    --flame-ink: #000;
+    --flame-ink-hi: #000;
+    --on-flame: #fff;
+
+    --frost: #444;
+    --frost-ink: #000;
+    --invert: #fff;
+
+    --good: #000;
+    --warn: #000;
+    --bad: #000;
+    --idle: #666;
+
+    --shadow-1: transparent;
+    --shadow-2: transparent;
+    --shadow-3: transparent;
+    --grain-opacity: 0;
+    --bloom: 0;
+    --chrome: #fff;
+    --field-bg: #fff;
+    --field-bg-focus: #fff;
+  }
+}
