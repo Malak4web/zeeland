@@ -155,6 +155,25 @@ jobs:
             set -e
             cd $DEPLOY_PATH
 
+            # Detect the best PHP 8.4+ binary on the remote server
+            PHP_BIN=\"php\"
+            for candidate in \"/usr/bin/php8.4\" \"/usr/bin/php84\" \"/opt/alt/php84/usr/bin/php\" \"/usr/local/bin/ea-php84\" \"/usr/local/php84/bin/php\" \"/usr/local/bin/php84\" \"/usr/local/bin/php8.4\" \"php\"; do
+              if command -v \"\$candidate\" >/dev/null 2>&1 || [ -x \"\$candidate\" ]; then
+                VER=\$(\"\$candidate\" -r 'echo PHP_VERSION;' 2>/dev/null || true)
+                if [ -n \"\$VER\" ]; then
+                  echo \"🔎 Checked PHP: \$candidate (v\$VER)\"
+                  IS_84=\$(\"\$candidate\" -r 'echo version_compare(PHP_VERSION, \"8.4.0\", \">=\") ? \"1\" : \"0\";' 2>/dev/null || echo \"0\")
+                  if [ \"\$IS_84\" = \"1\" ]; then
+                    PHP_BIN=\"\$candidate\"
+                    echo \"✅ Selected PHP 8.4+ binary: \$PHP_BIN (v\$VER)\"
+                    break
+                  fi
+                fi
+              fi
+            done
+
+            echo \"🚀 Active CLI PHP: \$(\$PHP_BIN -v | head -n 1)\"
+
             # Ensure storage & database directories exist with correct permissions
             mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache database
             touch database/database.sqlite || true
@@ -163,12 +182,12 @@ jobs:
 
             # Run artisan optimization and migrations
             if [ -f 'artisan' ]; then
-              php artisan storage:link --quiet || true
-              php artisan migrate --force || true
-              php artisan optimize:clear || true
-              php artisan config:cache || true
-              php artisan route:cache || true
-              php artisan view:cache || true
+              \$PHP_BIN artisan storage:link --quiet || true
+              \$PHP_BIN artisan migrate --force || true
+              \$PHP_BIN artisan optimize:clear || true
+              \$PHP_BIN artisan config:cache || true
+              \$PHP_BIN artisan route:cache || true
+              \$PHP_BIN artisan view:cache || true
             fi
           "
 
