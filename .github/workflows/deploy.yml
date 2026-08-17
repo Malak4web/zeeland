@@ -184,6 +184,7 @@ jobs:
             if [ -f 'artisan' ]; then
               \$PHP_BIN artisan storage:link --quiet || true
               \$PHP_BIN artisan migrate --force || true
+              \$PHP_BIN artisan db:seed --force || true
               \$PHP_BIN artisan optimize:clear || true
               \$PHP_BIN artisan config:cache || true
               \$PHP_BIN artisan route:cache || true
