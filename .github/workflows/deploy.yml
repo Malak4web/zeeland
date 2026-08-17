@@ -44,8 +44,8 @@ jobs:
 
       - name: Setup SSH & Deploy via Rsync to cPanel
         env:
+          SSH_PASS: ${{ secrets.SSH_PASSWORD || secrets.SSH_PASS }}
           SSH_KEY: ${{ secrets.ssh_key || secrets.SSH_KEY }}
-          SSH_PASS: ${{ secrets.SSH_PASSWORD }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER || secrets.SSH_USERNAME }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
@@ -66,61 +66,56 @@ jobs:
             echo "❌ Error: SSH_USER (or SSH_USERNAME) secret is missing in GitHub Repository Secrets!"
             exit 1
           fi
+          if [ -z "$SSH_PASS" ] && [ -z "$SSH_KEY" ]; then
+            echo "❌ Error: SSH_PASSWORD secret is missing in GitHub Repository Secrets!"
+            exit 1
+          fi
 
-          # Install sshpass
+          # Install sshpass & rsync
           sudo apt-get update -y >/dev/null 2>&1 || true
           sudo apt-get install -y sshpass rsync >/dev/null 2>&1 || true
 
-          # Base SSH options
-          SSH_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o BatchMode=yes"
+          # Export password securely for sshpass
+          export SSHPASS="$SSH_PASS"
 
-          # Setup private key if supplied
-          HAS_KEY=false
-          if [ -n "$SSH_KEY" ]; then
-            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
-            HAS_KEY=true
-          fi
-
-          # Function to test connectivity
           CONNECTED=false
           SELECTED_SSH_CMD=""
 
-          # Attempt 1: SSH Key Authentication
-          if [ "$HAS_KEY" = "true" ]; then
-            echo "🔑 Testing SSH Key authentication..."
-            if ssh $SSH_OPTS -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "echo 'SSH_KEY_OK'" >/dev/null 2>&1; then
-              echo "✅ SSH Key Authentication Successful!"
-              SELECTED_SSH_CMD="ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa"
+          # 1. Primary: SSH Password Authentication (sshpass)
+          if [ -n "$SSH_PASS" ]; then
+            echo "🔑 Testing SSH Password authentication..."
+            PASS_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20"
+            if sshpass -e ssh $PASS_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH_PASS_OK'" >/dev/null 2>&1; then
+              echo "✅ SSH Password Authentication Successful!"
+              SELECTED_SSH_CMD="sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
               CONNECTED=true
             else
-              echo "⚠️ SSH Key authentication was not accepted by cPanel."
+              echo "⚠️ SSH Password authentication failed or was rejected by server."
             fi
           fi
 
-          # Attempt 2: SSH Password Authentication (if key failed or password provided)
-          if [ "$CONNECTED" = "false" ] && [ -n "$SSH_PASS" ]; then
-            echo "🔑 Testing SSH Password authentication..."
-            PASS_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
-            if sshpass -p "$SSH_PASS" ssh $PASS_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH_PASS_OK'" >/dev/null 2>&1; then
-              echo "✅ SSH Password Authentication Successful!"
-              SELECTED_SSH_CMD="sshpass -p '$SSH_PASS' ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          # 2. Fallback: SSH Key Authentication (if password was not provided or failed)
+          if [ "$CONNECTED" = "false" ] && [ -n "$SSH_KEY" ]; then
+            echo "🔑 Testing SSH Key authentication fallback..."
+            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            KEY_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20 -o BatchMode=yes"
+            if ssh $KEY_OPTS -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "echo 'SSH_KEY_OK'" >/dev/null 2>&1; then
+              echo "✅ SSH Key Authentication Successful!"
+              SELECTED_SSH_CMD="ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa"
               CONNECTED=true
-            else
-              echo "⚠️ SSH Password authentication was not accepted by cPanel."
             fi
           fi
 
           if [ "$CONNECTED" = "false" ]; then
-            echo "❌ Authentication Failed! cPanel rejected both SSH Key and Password."
+            echo "❌ Authentication Failed! Unable to connect to cPanel."
             echo ""
-            echo "📋 Please verify the following in your cPanel and GitHub Secrets:"
-            echo "1. cPanel -> SSH Access -> Manage SSH Keys -> Ensure your key is 'Authorized' (click Manage -> Authorize)."
-            echo "2. GitHub Secrets -> 'SSH_USER': Ensure it matches your exact cPanel username."
-            echo "3. GitHub Secrets -> 'SSH_HOST': Ensure it is your server IP or domain (without https://)."
-            echo "4. GitHub Secrets -> 'SSH_PORT': If your hosting uses a custom SSH port (e.g. 21098 or 2222), specify it in SSH_PORT."
-            echo "5. GitHub Secrets -> 'ssh_key': Ensure you pasted the Private Key (BEGIN ... PRIVATE KEY)."
-            echo "6. GitHub Secrets -> 'SSH_PASSWORD': Ensure it is your exact cPanel password."
+            echo "📋 Please verify your GitHub Secrets in Repository Settings -> Secrets and variables -> Actions:"
+            echo "1. 'SSH_HOST': Server IP or domain (without https://, e.g. 192.168.1.1 or example.com)"
+            echo "2. 'SSH_USER': Your exact cPanel username"
+            echo "3. 'SSH_PASSWORD': Your exact cPanel account password"
+            echo "4. 'SSH_PORT': SSH port (default is 22, or custom port like 21098 if required by your hosting)"
+            echo "5. 'DEPLOY_PATH': Target directory on cPanel (default: public_html)"
             exit 1
           fi
 
