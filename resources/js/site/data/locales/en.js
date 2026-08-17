@@ -16,6 +16,7 @@ export default {
     minRead: 'min read',
     allArticles: 'All Articles',
     allRightsReserved: 'All rights reserved.',
+    developedBy: 'Developed by Zadians',
     productOfEgypt: 'Product of Egypt · Keep frozen at −18 °C',
     themeLight: 'Light',
     themeDark: 'Dark',

@@ -73,6 +73,9 @@ const year = new Date().getFullYear()
 
       <div class="flex flex-col gap-3 text-[0.85rem] text-cream-3 sm:flex-row sm:justify-between sm:items-center">
         <p><span class="ltr-iso">© {{ year }} {{ contact.company }}</span> — {{ t.common.allRightsReserved }}</p>
+        <p>
+          <a href="https://zadians.com/" target="_blank" rel="noopener" class="transition-colors hover:text-flame-ink-hi">{{ t.common.developedBy }}</a>
+        </p>
         <p class="num tracking-wide" dir="ltr">{{ t.common.productOfEgypt }}</p>
       </div>
     </div>

@@ -16,6 +16,7 @@ export default {
     minRead: 'دقيقة قراية',
     allArticles: 'كل المقالات',
     allRightsReserved: 'كل الحقوق محفوظة.',
+    developedBy: 'تطوير زاديانز',
     productOfEgypt: 'Product of Egypt · Keep frozen at −18 °C',
     themeLight: 'فاتح',
     themeDark: 'داكن',
