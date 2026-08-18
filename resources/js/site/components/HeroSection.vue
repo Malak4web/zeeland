@@ -162,7 +162,7 @@ const valueText = computed(() =>
           >
             <!-- golden: the payoff -->
             <img
-              src="/img/fries-heap.jpg"
+              src="/img/fries-heap.jpg?v=3"
               :alt="t.hero.altGolden"
               width="1800"
               height="1200"
