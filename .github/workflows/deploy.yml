@@ -110,14 +110,24 @@ jobs:
 
           # 1. Primary: SSH Password Authentication (sshpass)
           if [ -n "$SSH_PASS" ]; then
-            echo "🔑 Testing SSH Password authentication..."
-            PASS_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20"
-            if sshpass -e ssh $PASS_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH_PASS_OK'" >/dev/null 2>&1; then
-              echo "✅ SSH Password Authentication Successful!"
+            echo "🔑 Testing SSH Password authentication on port $SSH_PORT..."
+            PASS_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+            if sshpass -e ssh $PASS_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH_PASS_OK'"; then
+              echo "✅ SSH Password Authentication Successful on port $SSH_PORT!"
               SELECTED_SSH_CMD="sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
               CONNECTED=true
             else
-              echo "⚠️ SSH Password authentication failed or was rejected by server."
+              echo "⚠️ SSH Password authentication failed on port $SSH_PORT."
+              # Try Hostinger port 65002 if 22 failed
+              if [ "$SSH_PORT" = "22" ] || [ -z "$SSH_PORT" ]; then
+                echo "🔄 Trying Hostinger default SSH port 65002..."
+                HPASS_OPTS="-p 65002 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+                if sshpass -e ssh $HPASS_OPTS "$SSH_USER@$SSH_HOST" "echo 'SSH_PASS_OK'"; then
+                  echo "✅ SSH Password Authentication Successful on port 65002 (Hostinger)!"
+                  SELECTED_SSH_CMD="sshpass -e ssh -p 65002 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+                  CONNECTED=true
+                fi
+              fi
             fi
           fi
 
@@ -126,8 +136,8 @@ jobs:
             echo "🔑 Testing SSH Key authentication fallback..."
             echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
-            KEY_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20 -o BatchMode=yes"
-            if ssh $KEY_OPTS -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "echo 'SSH_KEY_OK'" >/dev/null 2>&1; then
+            KEY_OPTS="-p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o BatchMode=yes"
+            if ssh $KEY_OPTS -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "echo 'SSH_KEY_OK'"; then
               echo "✅ SSH Key Authentication Successful!"
               SELECTED_SSH_CMD="ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa"
               CONNECTED=true
@@ -135,14 +145,15 @@ jobs:
           fi
 
           if [ "$CONNECTED" = "false" ]; then
-            echo "❌ Authentication Failed! Unable to connect to cPanel."
+            echo "❌ Authentication Failed! Unable to connect to server via SSH."
             echo ""
-            echo "📋 Please verify your GitHub Secrets in Repository Settings -> Secrets and variables -> Actions:"
-            echo "1. 'SSH_HOST': Server IP or domain (without https://, e.g. 192.168.1.1 or example.com)"
-            echo "2. 'SSH_USER': Your exact cPanel username"
-            echo "3. 'SSH_PASSWORD': Your exact cPanel account password"
-            echo "4. 'SSH_PORT': SSH port (default is 22, or custom port like 21098 if required by your hosting)"
-            echo "5. 'DEPLOY_PATH': Target directory on cPanel (default: public_html)"
+            echo "📋 Please verify the following in Hostinger hPanel & GitHub Secrets:"
+            echo "1. Hostinger hPanel -> Advanced -> 'SSH Access': Ensure SSH is ENABLED."
+            echo "2. 'SSH_HOST': Your server IP or domain (e.g. 192.168.1.1 or connect.hostinger.com)"
+            echo "3. 'SSH_USER': Your exact Hostinger/cPanel username (e.g. u469743545)"
+            echo "4. 'SSH_PASSWORD': Your exact SSH / hosting account password"
+            echo "5. 'SSH_PORT': For Hostinger, port is usually 65002 (default cPanel is 22)"
+            echo "6. 'DEPLOY_PATH': Target path (e.g. domains/zad-dist.com/public_html or public_html)"
             exit 1
           fi
 
