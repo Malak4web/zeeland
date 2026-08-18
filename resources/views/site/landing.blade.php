@@ -2,7 +2,7 @@
 
 @push('head')
     <link rel="preload" as="image" href="{{ asset('img/fries-dark.jpg') }}" fetchpriority="high">
-    <link rel="preload" as="image" href="{{ asset('img/fries-heap.jpg') }}" fetchpriority="high">
+    <link rel="preload" as="image" href="{{ asset('img/fries-heap.jpg?v=2') }}" fetchpriority="high">
 @endpush
 
 @section('body')
