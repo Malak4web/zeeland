@@ -9,7 +9,7 @@ import { t, isRTL } from '../i18n.js'
    itself once on load, then stays draggable. It is a real <input type=range>,
    so keyboard, touch and screen-reader support come for free. */
 
-const progress = ref(0) // 0 = frozen, 1 = golden
+const progress = ref(1) // 1 = golden (payoff visible by default)
 const userTook = ref(false)
 let raf = 0
 
@@ -25,21 +25,7 @@ const reduced = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 onMounted(() => {
-  if (reduced()) {
-    progress.value = 1
-    return
-  }
-  const DURATION = 2200
-  const DELAY = 420
-  let start = 0
-  const step = (now) => {
-    if (userTook.value) return
-    if (!start) start = now
-    const t = clamp((now - start - DELAY) / DURATION)
-    progress.value = easeOutQuint(t)
-    if (t < 1) raf = requestAnimationFrame(step)
-  }
-  raf = requestAnimationFrame(step)
+  progress.value = 1
 })
 onBeforeUnmount(() => cancelAnimationFrame(raf))
 
@@ -98,77 +84,70 @@ const valueText = computed(() =>
 
 <template>
   <section id="top" class="grain relative overflow-hidden pt-20 pb-14 lg:pt-32 lg:pb-24">
-    <!-- ambient layers -->
+    <!-- ambient glow -->
     <div
-      class="pointer-events-none absolute top-[-7rem] left-1/2 -z-10 h-[30rem] w-[42rem] max-w-[135vw] -translate-x-1/2 transition-[background,opacity] duration-700 ease-out-quart lg:top-[-5rem] lg:left-[32%] lg:h-[44rem] lg:w-[54rem]"
+      class="pointer-events-none absolute -top-24 -end-24 h-[36rem] w-[36rem] rounded-full transition-[background,opacity] duration-700 ease-out-quart lg:h-[48rem] lg:w-[48rem]"
       :style="glowStyle"
       aria-hidden="true"
     />
-    <div
-      class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-[url('/img/fry-basket-dark.jpg')] bg-cover bg-center opacity-[0.05] blur-[3px]"
-      aria-hidden="true"
-    />
-    <div
-      class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-gradient-to-t from-abyss via-abyss/75 to-transparent"
-      aria-hidden="true"
-    />
 
-    <div class="container-zl grid gap-y-10 lg:grid-cols-12 lg:gap-x-14 lg:gap-y-12">
-      <!-- ── the claim ── -->
-      <div class="lg:col-span-6 lg:col-start-1 lg:row-start-1 lg:self-end">
-        <p class="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-[0.82rem] text-cream-3">
-          <span
-            v-for="badge in t.hero.badges"
-            :key="badge"
-            class="num rounded-full border border-navy-3 px-3 py-1"
-          >
-            {{ badge }}
-          </span>
-        </p>
+    <div class="container-zl grid gap-y-12 lg:grid-cols-12 lg:gap-x-12 lg:gap-y-0">
+      <!-- ── pitch ── -->
+      <div class="lg:col-span-6 lg:row-start-1 lg:self-center">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="badge badge-subtle">{{ t.hero.badgeVariety }}</span>
+          <span class="badge badge-subtle">{{ t.hero.badgeCut }}</span>
+          <span class="badge badge-subtle">{{ t.hero.badgeWeight }}</span>
+        </div>
 
-        <h1 class="text-display font-black">
-          <span class="block text-cream">{{ t.hero.titleLine1 }}</span>
-          <span class="block text-flame-ink">{{ t.hero.titleLine2 }}</span>
+        <h1 class="text-display mt-6 font-display font-black tracking-tight text-cream">
+          <span class="block">{{ t.hero.h1Line1 }}</span>
+          <span class="block text-flame">{{ t.hero.h1Line2 }}</span>
         </h1>
 
-        <p class="prose-zl mt-6 lg:mt-7">
+        <p class="text-lead mt-6 text-cream-2">
           {{ t.hero.lead }}
         </p>
-      </div>
 
-      <!-- ── actions ── -->
-      <div class="order-last lg:order-none lg:col-span-6 lg:col-start-1 lg:row-start-2 lg:self-start">
-        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <!-- CTA row -->
+        <div class="mt-8 flex flex-wrap items-center gap-3 sm:gap-4 lg:mt-10">
           <a
             :href="waDefault"
             target="_blank"
             rel="noopener"
-            class="group inline-flex items-center justify-center gap-2.5 rounded-full bg-flame px-7 py-4 font-medium text-on-flame shadow-[0_16px_40px_-16px] shadow-flame/70 transition-[background-color,transform] duration-300 ease-out-quart hover:bg-flame-hi active:scale-[0.98]"
+            class="btn btn-primary btn-lg"
           >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
               <path
-                d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m0 1.67c2.2 0 4.27.86 5.82 2.42a8.19 8.19 0 0 1 2.42 5.82c0 4.54-3.7 8.24-8.25 8.24a8.25 8.25 0 0 1-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.26-8.24M8.53 7.33c-.16 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.21.89 2.39 1.01 2.55.12.17 1.72 2.62 4.16 3.68.58.25 1.03.4 1.39.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16s.2-1.06.14-1.16-.22-.16-.47-.28c-.24-.12-1.44-.71-1.66-.79-.22-.08-.38-.12-.55.12-.16.25-.62.79-.76.95-.14.17-.28.19-.52.07-.25-.13-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.24-.01-.37.11-.49.11-.11.24-.29.37-.43s.17-.25.25-.41c.08-.17.04-.31-.02-.43s-.55-1.34-.76-1.83c-.2-.48-.4-.42-.55-.42-.14 0-.3-.02-.47-.02"
+                d="M17.472 14.382c-.301-.15-1.78-.879-2.056-.98-.276-.1-.477-.15-.678.15-.201.3-.777.98-.953 1.181-.176.201-.351.226-.652.075-.301-.15-1.272-.469-2.423-1.496-.895-.798-1.5-1.784-1.676-2.085-.176-.301-.019-.464.132-.614.136-.135.301-.351.451-.527.15-.176.201-.301.301-.502.1-.201.05-.376-.025-.527-.075-.15-.678-1.633-.929-2.235-.245-.587-.494-.507-.678-.517-.176-.01-.376-.01-.577-.01-.201 0-.527.075-.803.376s-1.054 1.03-1.054 2.511c0 1.482 1.079 2.912 1.23 3.113.15.201 2.123 3.242 5.143 4.547.718.311 1.279.497 1.716.636.721.23 1.377.197 1.896.12.578-.087 1.78-.728 2.031-1.431.251-.703.251-1.306.176-1.431-.075-.126-.276-.201-.577-.351z"
+              />
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.176L2.05 21.45a.75.75 0 0 0 .937.937l4.382-1.388A9.957 9.957 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zM3.5 12a8.5 8.5 0 1 1 14.773 5.75.75.75 0 0 0-.15.461l.966 3.053-3.11-.984a.75.75 0 0 0-.46.012A8.47 8.47 0 0 1 12 20.5 8.5 8.5 0 0 1 3.5 12z"
               />
             </svg>
-            {{ t.hero.ctaWhatsapp }}
+            {{ t.hero.ctaWhatsApp }}
           </a>
 
-          <a
-            href="#quote"
-            class="inline-flex items-center justify-center gap-2 rounded-full border border-navy-3 px-7 py-4 font-medium text-cream transition-colors duration-300 hover:border-steel hover:bg-navy"
-          >
+          <a href="#quote" class="btn btn-secondary btn-lg">
             {{ t.hero.ctaQuote }}
           </a>
         </div>
 
-        <dl class="mt-10 grid max-w-lg grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+        <!-- micro facts -->
+        <dl class="mt-10 grid grid-cols-2 gap-4 border-t border-navy-2 pt-6 sm:grid-cols-4 lg:mt-12">
           <div v-for="fact in packFacts" :key="fact.label">
-            <dt class="text-[0.75rem] text-cream-3">{{ fact.label }}</dt>
-            <dd class="mt-1.5 text-[1.35rem] font-semibold text-cream">
-              <span class="num"
-                >{{ fact.value
-                }}<span class="text-[0.72em] text-cream-3">{{ fact.unit }}</span></span
-              >
+            <dt class="text-[0.78rem] text-cream-3">{{ fact.label }}</dt>
+            <dd class="num mt-1 text-[1.2rem] font-bold text-cream">
+              {{ fact.value }}
+              <span v-if="fact.unit" class="text-[0.75em] text-cream-3">{{ fact.unit }}</span>
             </dd>
           </div>
         </dl>
@@ -183,7 +162,7 @@ const valueText = computed(() =>
           >
             <!-- golden: the payoff -->
             <img
-              src="/img/fries-heap.jpg?v=2"
+              src="/img/fries-heap.jpg"
               :alt="t.hero.altGolden"
               width="1800"
               height="1200"
@@ -212,7 +191,7 @@ const valueText = computed(() =>
             />
 
             <div
-              class="pointer-events-none absolute inset-0 bg-gradient-to-t from-abyss/92 via-abyss/12 to-abyss/45"
+              class="pointer-events-none absolute inset-0 bg-gradient-to-t from-abyss/60 via-transparent to-abyss/30"
               aria-hidden="true"
             />
 
