@@ -16,7 +16,16 @@ export default defineConfig({
   // hashed bundles is added server-side by App\Support\Vite when it reads the
   // manifest, so the two never have to agree.
   base: '/',
-  plugins: [vue(), tailwindcss()],
+  plugins: [
+    vue({
+      template: {
+        transformAssetUrls: {
+          includeAbsolute: false,
+        },
+      },
+    }),
+    tailwindcss(),
+  ],
   build: {
     outDir: 'public/build',
     emptyOutDir: true,
